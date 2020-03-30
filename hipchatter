@@ -1,0 +1,93 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'docopt'
+
+
+begin
+  OPTS = Docopt.docopt <<~DOCOPT
+    hipchatter
+
+    Import ALL THE EMOJI (allthethings) from Hipchat into Slack!
+
+    Usage:
+        hipchatter <slack-team> <slack-cookie>
+
+    Options:
+        -h --help     Show this screen.
+  DOCOPT
+rescue Docopt::Exit => e
+  puts e.message
+  exit(1)
+end
+
+
+EMOJI_URL = 'https://www.hipchat.com/emoticons'
+SLACK_BASE_URL = 'https://{}.slack.com/customize/emoji'
+
+
+def hipchatter(slack_team, slack_cookie)
+  return
+  headers = {'Cookie': slack_cookie}
+  slack_url = SLACK_BASE_URL.format(slack_team)
+  for div in get_img_divs
+    _copy_emoji(div.find("img")["src"], slack_url, headers)
+  end
+end
+
+
+hipchatter(OPTS['<slack-team>'], OPTS['<slack-cookie>'])
+
+# CMDARGS = docopt(__doc__)
+#
+#
+#
+# def hipchatter(slack_team, slack_cookie):
+#     headers = {'Cookie': slack_cookie}
+#     slack_url = SLACK_BASE_URL.format(slack_team)
+#     for div in _get_img_divs():
+#         _copy_emoji(div.find("img")["src"], slack_url, headers)
+#
+#
+# def _get_img_divs():
+#     soup = BeautifulSoup(requests.get(EMOJI_URL).text, 'html.parser')
+#     return soup.findAll("div", {"class": "emoticon-block"})
+#
+#
+# def _copy_emoji(url, slack_url, headers):
+#     file_name = _download(url)
+#     emoji_name = os.path.basename(url).split("-")[0]
+#     _upload(emoji_name, file_name, slack_url, headers)
+#     os.remove(file_name)
+#
+#
+# def _download(url):
+#     print("downloading: {}".format(url))
+#     with NamedTemporaryFile(delete=False) as fp:
+#         shutil.copyfileobj(requests.get(url, stream=True).raw, fp)
+#         return fp.name
+#
+#
+# def _upload(name, file_name, slack_url, headers):
+#     print("uploading: {}".format(name))
+#     data = {
+#         'add': 1,
+#         'crumb': _get_crumb(slack_url, headers),
+#         'name': name,
+#         'mode': 'data',
+#     }
+#     with open(file_name, 'rb') as fp:
+#         files = {'img': fp}
+#         response = requests.post(slack_url,
+#                                  headers=headers,
+#                                  data=data,
+#                                  files=files,
+#                                  allow_redirects=False)
+#     response.raise_for_status()
+#
+#
+# def _get_crumb(slack_url, headers):
+#     response = requests.get(slack_url, headers=headers)
+#     response.raise_for_status()
+#     soup = BeautifulSoup(response.text, "html.parser")
+#     return soup.find("input", attrs={"name": "crumb"})["value"]
