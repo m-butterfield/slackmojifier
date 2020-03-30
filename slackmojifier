@@ -3,15 +3,14 @@
 
 require 'docopt'
 
-
 begin
   OPTS = Docopt.docopt <<~DOCOPT
-    hipchatter
+    slackmojifier
 
-    Import ALL THE EMOJI (allthethings) from Hipchat into Slack!
+    Import ALL THE EMOJI from Slackmoji into Slack!
 
     Usage:
-        hipchatter <slack-team> <slack-cookie>
+        slackmojifier <slack-team> <slack-cookie>
 
     Options:
         -h --help     Show this screen.
@@ -21,46 +20,27 @@ rescue Docopt::Exit => e
   exit(1)
 end
 
+EMOJI_URL = 'https://slackmojis.com/emojis/popular'
+SLACK_BASE_URL = 'https://%s.slack.com/customize/emoji'
 
-EMOJI_URL = 'https://www.hipchat.com/emoticons'
-SLACK_BASE_URL = 'https://{}.slack.com/customize/emoji'
-
-
-def hipchatter(slack_team, slack_cookie)
-  return
-  headers = {'Cookie': slack_cookie}
-  slack_url = SLACK_BASE_URL.format(slack_team)
-  for div in get_img_divs
-    _copy_emoji(div.find("img")["src"], slack_url, headers)
-  end
+def slackmojifier(slack_team, slack_cookie)
+  headers = { Cookie: slack_cookie }
+  slack_url = SLACK_BASE_URL % slack_team
+  get_img_divs.each { copy_emoji(@1, slack_url, headers) }
 end
 
+def get_img_divs
+  soup = BeautifulSoup(requests.get(EMOJI_URL).text, 'html.parser')
+  soup.findAll("div", {"class": "emoticon-block"})
+end
 
-hipchatter(OPTS['<slack-team>'], OPTS['<slack-cookie>'])
+def copy_emoji(url, slack_url, headers)
+  file_name = _download(url)
+  emoji_name = os.path.basename(url).split("-")[0]
+  _upload(emoji_name, file_name, slack_url, headers)
+  os.remove(file_name)
+end
 
-# CMDARGS = docopt(__doc__)
-#
-#
-#
-# def hipchatter(slack_team, slack_cookie):
-#     headers = {'Cookie': slack_cookie}
-#     slack_url = SLACK_BASE_URL.format(slack_team)
-#     for div in _get_img_divs():
-#         _copy_emoji(div.find("img")["src"], slack_url, headers)
-#
-#
-# def _get_img_divs():
-#     soup = BeautifulSoup(requests.get(EMOJI_URL).text, 'html.parser')
-#     return soup.findAll("div", {"class": "emoticon-block"})
-#
-#
-# def _copy_emoji(url, slack_url, headers):
-#     file_name = _download(url)
-#     emoji_name = os.path.basename(url).split("-")[0]
-#     _upload(emoji_name, file_name, slack_url, headers)
-#     os.remove(file_name)
-#
-#
 # def _download(url):
 #     print("downloading: {}".format(url))
 #     with NamedTemporaryFile(delete=False) as fp:
@@ -91,3 +71,5 @@ hipchatter(OPTS['<slack-team>'], OPTS['<slack-cookie>'])
 #     response.raise_for_status()
 #     soup = BeautifulSoup(response.text, "html.parser")
 #     return soup.find("input", attrs={"name": "crumb"})["value"]
+
+slackmojifier(OPTS['<slack-team>'], OPTS['<slack-cookie>'])

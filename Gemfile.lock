@@ -2,12 +2,16 @@ GEM
   remote: https://rubygems.org/
   specs:
     docopt (0.6.1)
+    mini_portile2 (2.4.0)
+    nokogiri (1.10.9)
+      mini_portile2 (~> 2.4.0)
 
 PLATFORMS
   ruby
 
 DEPENDENCIES
   docopt
+  nokogiri
 
 BUNDLED WITH
    2.1.4
