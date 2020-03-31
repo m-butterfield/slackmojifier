@@ -29,15 +29,15 @@ BASE_URL = 'https://slackmojis.com'
 EMOJI_URL = "#{BASE_URL}/emojis/popular"
 SLACK_BASE_URL = 'https://%s.slack.com/customize/emoji'
 
-def slackmojifier(slack_url, slack_cookie)
+def slackmojifier(slack_url, cookie)
   Nokogiri::HTML.parse(OpenURI.open_uri(EMOJI_URL)).css('a.downloader').each do |d|
-    copy_emoji("#{BASE_URL}#{d['href']}", slack_url, slack_cookie)
+    copy_emoji("#{BASE_URL}#{d['href']}", d.text.strip.gsub(/\A\:|\:\Z/, ''), slack_url, cookie)
     break
   end
 end
 
-def copy_emoji(url, slack_url, headers)
-  tempfile = download(url)
+def copy_emoji(url, emoji_name, slack_url, cookie)
+  tempfile = Down.download(url)
   begin
     # emoji_name = os.path.basename(url).split("-")[0]
     # _upload(emoji_name, file_name, slack_url, headers)
@@ -46,12 +46,6 @@ def copy_emoji(url, slack_url, headers)
     tempfile.unlink
   end
 end
-
-def download(url)
-  puts "downloading: #{url}"
-  Down.download(url)
-end
-
 
 # def _upload(name, file_name, slack_url, headers):
 #     print("uploading: {}".format(name))
