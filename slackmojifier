@@ -20,34 +20,39 @@ rescue Docopt::Exit => e
   exit(1)
 end
 
-EMOJI_URL = 'https://slackmojis.com/emojis/popular'
+require 'down'
+require 'nokogiri'
+require 'open-uri'
+require 'pry'
+
+BASE_URL = 'https://slackmojis.com'
+EMOJI_URL = "#{BASE_URL}/emojis/popular"
 SLACK_BASE_URL = 'https://%s.slack.com/customize/emoji'
 
-def slackmojifier(slack_team, slack_cookie)
-  headers = { Cookie: slack_cookie }
-  slack_url = SLACK_BASE_URL % slack_team
-  get_img_divs.each { copy_emoji(@1, slack_url, headers) }
-end
-
-def get_img_divs
-  soup = BeautifulSoup(requests.get(EMOJI_URL).text, 'html.parser')
-  soup.findAll("div", {"class": "emoticon-block"})
+def slackmojifier(slack_url, slack_cookie)
+  Nokogiri::HTML.parse(OpenURI.open_uri(EMOJI_URL)).css('a.downloader').each do |d|
+    copy_emoji("#{BASE_URL}#{d['href']}", slack_url, slack_cookie)
+    break
+  end
 end
 
 def copy_emoji(url, slack_url, headers)
-  file_name = _download(url)
-  emoji_name = os.path.basename(url).split("-")[0]
-  _upload(emoji_name, file_name, slack_url, headers)
-  os.remove(file_name)
+  tempfile = download(url)
+  begin
+    # emoji_name = os.path.basename(url).split("-")[0]
+    # _upload(emoji_name, file_name, slack_url, headers)
+  ensure
+    tempfile.close
+    tempfile.unlink
+  end
 end
 
-# def _download(url):
-#     print("downloading: {}".format(url))
-#     with NamedTemporaryFile(delete=False) as fp:
-#         shutil.copyfileobj(requests.get(url, stream=True).raw, fp)
-#         return fp.name
-#
-#
+def download(url)
+  puts "downloading: #{url}"
+  Down.download(url)
+end
+
+
 # def _upload(name, file_name, slack_url, headers):
 #     print("uploading: {}".format(name))
 #     data = {
@@ -72,4 +77,4 @@ end
 #     soup = BeautifulSoup(response.text, "html.parser")
 #     return soup.find("input", attrs={"name": "crumb"})["value"]
 
-slackmojifier(OPTS['<slack-team>'], OPTS['<slack-cookie>'])
+slackmojifier(SLACK_BASE_URL % OPTS['<slack-team>'], OPTS['<slack-cookie>'])
