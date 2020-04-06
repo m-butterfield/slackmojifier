@@ -6,8 +6,24 @@ GEM
     byebug (11.1.1)
     coderay (1.1.2)
     docopt (0.6.1)
+    domain_name (0.5.20190701)
+      unf (>= 0.0.5, < 1.0.0)
     down (5.1.1)
       addressable (~> 2.5)
+    ffi (1.12.2)
+    ffi-compiler (1.0.1)
+      ffi (>= 1.0.0)
+      rake
+    http (4.4.1)
+      addressable (~> 2.3)
+      http-cookie (~> 1.0)
+      http-form_data (~> 2.2)
+      http-parser (~> 1.2.0)
+    http-cookie (1.0.3)
+      domain_name (~> 0.5)
+    http-form_data (2.3.0)
+    http-parser (1.2.1)
+      ffi-compiler (>= 1.0, < 2.0)
     method_source (1.0.0)
     mini_portile2 (2.4.0)
     nokogiri (1.10.9)
@@ -19,6 +35,10 @@ GEM
       byebug (~> 11.0)
       pry (~> 0.13.0)
     public_suffix (4.0.3)
+    rake (13.0.1)
+    unf (0.1.4)
+      unf_ext
+    unf_ext (0.0.7.7)
 
 PLATFORMS
   ruby
@@ -26,6 +46,7 @@ PLATFORMS
 DEPENDENCIES
   docopt
   down
+  http
   nokogiri
   pry
   pry-byebug

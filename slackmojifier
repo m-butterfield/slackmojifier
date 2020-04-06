@@ -7,7 +7,7 @@ begin
   OPTS = Docopt.docopt <<~DOCOPT
     slackmojifier
 
-    Import ALL THE EMOJI from Slackmoji into Slack!
+    Import custom emoji from Slackmoji into Slack!
 
     Usage:
         slackmojifier <slack-team> <slack-cookie>
@@ -21,54 +21,62 @@ rescue Docopt::Exit => e
 end
 
 require 'down'
+require 'http'
 require 'nokogiri'
 require 'open-uri'
-require 'pry'
 
-BASE_URL = 'https://slackmojis.com'
-EMOJI_URL = "#{BASE_URL}/emojis/popular"
+require 'pry' # remove this
+
+SLACKMOJI_BASE_URL = 'https://slackmojis.com'
+SLACKMOJI_LISTING_URL = "#{SLACKMOJI_BASE_URL}/emojis/popular"
 SLACK_BASE_URL = 'https://%s.slack.com/customize/emoji'
+SLACK_API_URL = 'https://slack.com/api/admin.emoji.add'
 
-def slackmojifier(slack_url, cookie)
-  Nokogiri::HTML.parse(OpenURI.open_uri(EMOJI_URL)).css('a.downloader').each do |d|
-    copy_emoji("#{BASE_URL}#{d['href']}", d.text.strip.gsub(/\A\:|\:\Z/, ''), slack_url, cookie)
+def slackmojifier(slack_url, slack_headers)
+  Nokogiri::HTML.parse(OpenURI.open_uri(SLACKMOJI_LISTING_URL)).css('a.downloader').each do |d|
+    url = "#{SLACKMOJI_BASE_URL}#{d['href']}"
+    name = d.text.strip.gsub(/\A\:|\:\Z/, '')
+    tempfile = Down.download(url)
+    begin
+      upload(name, tempfile.read, slack_url, slack_headers)
+      break # remove this...
+    ensure
+      tempfile.close
+      tempfile.unlink
+    end
     break
   end
 end
 
-def copy_emoji(url, emoji_name, slack_url, cookie)
-  tempfile = Down.download(url)
-  begin
-    # emoji_name = os.path.basename(url).split("-")[0]
-    # _upload(emoji_name, file_name, slack_url, headers)
-  ensure
-    tempfile.close
-    tempfile.unlink
-  end
+def upload(emoji_name, emoji_data, slack_url, slack_headers)
+  puts "Uploading: #{emoji_name}"
+  crumb = get_crumb(slack_url, slack_headers)
+  # resp = HTTP.post(SLACK_API_URL, form: { token: auth_token, mode: 'data', name: name, image: HTTP::FormData::File.new(tempfile.path)})
+  #   data = {
+#     add: 1,
+#     crumb: _get_crumb(slack_url, cookie),
+#     name: emoji_name,
+#     mode: 'data',
+#   }
+#   https://slack.com/api/admin.emoji.add
+  # with open(file_name, 'rb') as fp:
+  #     files = {'img': fp}
+  #     response = requests.post(slack_url,
+  #                              headers=headers,
+  #                              data=data,
+  #                              files=files,
+  #                              allow_redirects=False)
+  # response.raise_for_status()
 end
 
-# def _upload(name, file_name, slack_url, headers):
-#     print("uploading: {}".format(name))
-#     data = {
-#         'add': 1,
-#         'crumb': _get_crumb(slack_url, headers),
-#         'name': name,
-#         'mode': 'data',
-#     }
-#     with open(file_name, 'rb') as fp:
-#         files = {'img': fp}
-#         response = requests.post(slack_url,
-#                                  headers=headers,
-#                                  data=data,
-#                                  files=files,
-#                                  allow_redirects=False)
-#     response.raise_for_status()
-#
-#
-# def _get_crumb(slack_url, headers):
-#     response = requests.get(slack_url, headers=headers)
-#     response.raise_for_status()
-#     soup = BeautifulSoup(response.text, "html.parser")
-#     return soup.find("input", attrs={"name": "crumb"})["value"]
+def get_crumb(slack_url, slack_headers)
+  result = Nokogiri::HTML.parse(OpenURI.open_uri(slack_url, slack_headers))
+  input = result.css('input[name="crumb"]')
+  binding.pry
+  # response = HTTP.get(slack_url, headers=headers)
+  # response.raise_for_status()
+  # soup = BeautifulSoup(response.text, "html.parser")
+  # soup.find("input", attrs={"name": "crumb"})["value"]
+end
 
-slackmojifier(SLACK_BASE_URL % OPTS['<slack-team>'], OPTS['<slack-cookie>'])
+slackmojifier(SLACK_BASE_URL % OPTS['<slack-team>'], { "cookie" => OPTS['<slack-cookie>'] })
