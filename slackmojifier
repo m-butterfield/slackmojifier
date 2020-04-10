@@ -27,56 +27,65 @@ require 'open-uri'
 
 require 'pry' # remove this
 
-SLACKMOJI_BASE_URL = 'https://slackmojis.com'
-SLACKMOJI_LISTING_URL = "#{SLACKMOJI_BASE_URL}/emojis/popular"
-SLACK_BASE_URL = 'https://%s.slack.com/customize/emoji'
-SLACK_API_URL = 'https://slack.com/api/admin.emoji.add'
+SLACK_TEAM = OPTS['<slack-team>'].freeze
+SLACK_HEADERS = { "Cookie" => OPTS['<slack-cookie>'] }.freeze # must be string key for OpenURI
 
-def slackmojifier(slack_url, slack_headers)
-  Nokogiri::HTML.parse(OpenURI.open_uri(SLACKMOJI_LISTING_URL)).css('a.downloader').each do |d|
-    url = "#{SLACKMOJI_BASE_URL}#{d['href']}"
-    name = d.text.strip.gsub(/\A\:|\:\Z/, '')
-    tempfile = Down.download(url)
+SLACKMOJI_BASE_URL = 'https://slackmojis.com'
+SLACKMOJI_POPULAR_URL = "#{SLACKMOJI_BASE_URL}/emojis/popular"
+SLACK_CUSTOMIZE_URL = "https://#{SLACK_TEAM}.slack.com/customize/emoji"
+SLACK_EMOJI_API_URL = "https://#{SLACK_TEAM}.slack.com/api/admin.emoji.add"
+
+def slackmojifier
+  api_token = fetch_api_token(OpenURI.open_uri(SLACK_CUSTOMIZE_URL, SLACK_HEADERS))
+  Nokogiri::HTML.parse(OpenURI.open_uri(SLACKMOJI_POPULAR_URL)).css('a.downloader').each do |d|
+    tempfile = Down.download("#{SLACKMOJI_BASE_URL}#{d['href']}")
     begin
-      upload(name, tempfile.read, slack_url, slack_headers)
+      upload(d.text.strip.gsub(/\A:|:\Z/, ''), tempfile.read, api_token)
       break # remove this...
     ensure
       tempfile.close
       tempfile.unlink
     end
-    break
   end
 end
 
-def upload(emoji_name, emoji_data, slack_url, slack_headers)
+def fetch_api_token(data)
+  Nokogiri::HTML.parse(data).css('script').each do |e|
+    result = e.text.match(/"api_token":"([a-z\-0-9]+)"/)
+    return result.captures[0] unless result.nil?
+  end
+end
+
+def upload(emoji_name, emoji_data, api_token)
   puts "Uploading: #{emoji_name}"
-  crumb = get_crumb(slack_url, slack_headers)
-  # resp = HTTP.post(SLACK_API_URL, form: { token: auth_token, mode: 'data', name: name, image: HTTP::FormData::File.new(tempfile.path)})
-  #   data = {
-#     add: 1,
-#     crumb: _get_crumb(slack_url, cookie),
-#     name: emoji_name,
-#     mode: 'data',
-#   }
-#   https://slack.com/api/admin.emoji.add
-  # with open(file_name, 'rb') as fp:
-  #     files = {'img': fp}
-  #     response = requests.post(slack_url,
-  #                              headers=headers,
-  #                              data=data,
-  #                              files=files,
-  #                              allow_redirects=False)
-  # response.raise_for_status()
-end
-
-def get_crumb(slack_url, slack_headers)
-  result = Nokogiri::HTML.parse(OpenURI.open_uri(slack_url, slack_headers))
-  input = result.css('input[name="crumb"]')
   binding.pry
-  # response = HTTP.get(slack_url, headers=headers)
-  # response.raise_for_status()
-  # soup = BeautifulSoup(response.text, "html.parser")
-  # soup.find("input", attrs={"name": "crumb"})["value"]
+  # resp = HTTP.post(SLACK_API_URL, form: { token: auth_token, mode: 'data', name: name, image: HTTP::FormData::File.new(tempfile.path)})
+
+  # data = {
+  #     'mode': 'data',
+  #     'name': emoji_name,
+  #     'token': session.api_token
+  # }
+  #
+  # while True:
+  #   with open(filename, 'rb') as f:
+  #                                    files = {'image': f}
+  #   resp = session.post(session.url_add, data=data, files=files, allow_redirects=False)
+  #
+  #   if resp.status_code == 429:
+  #       wait = int(resp.headers.get('retry-after', 1))
+  #   print("429 Too Many Requests!, sleeping for %d seconds" % wait)
+  #   sleep(wait)
+  #   continue
+  #
+  #   resp.raise_for_status()
+  #
+  #   Slack returns 200 OK even if upload fails, so check for status.
+    # response_json = resp.json()
+    # if not response_json['ok']:
+    #     print("Error with uploading %s: %s" % (emoji_name, response_json))
+    #
+    # break
 end
 
-slackmojifier(SLACK_BASE_URL % OPTS['<slack-team>'], { "cookie" => OPTS['<slack-cookie>'] })
+slackmojifier
