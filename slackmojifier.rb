@@ -10,7 +10,7 @@ begin
     Import custom emoji from Slackmoji into Slack!
 
     Usage:
-        slackmojifier <slack-team> <slack-cookie>
+        ./slackmojifier.rb <slack-team> <slack-cookie>
 
     Options:
         -h --help     Show this screen.
