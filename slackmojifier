@@ -25,23 +25,20 @@ require 'http'
 require 'nokogiri'
 require 'open-uri'
 
-require 'pry' # remove this
-
 SLACK_TEAM = OPTS['<slack-team>'].freeze
 SLACK_HEADERS = { "Cookie" => OPTS['<slack-cookie>'] }.freeze # must be string key for OpenURI
 
 SLACKMOJI_BASE_URL = 'https://slackmojis.com'
 SLACKMOJI_POPULAR_URL = "#{SLACKMOJI_BASE_URL}/emojis/popular"
 SLACK_CUSTOMIZE_URL = "https://#{SLACK_TEAM}.slack.com/customize/emoji"
-SLACK_EMOJI_API_URL = "https://#{SLACK_TEAM}.slack.com/api/admin.emoji.add"
+SLACK_EMOJI_API_URL = "https://#{SLACK_TEAM}.slack.com/api/emoji.add"
 
 def slackmojifier
   api_token = fetch_api_token(OpenURI.open_uri(SLACK_CUSTOMIZE_URL, SLACK_HEADERS))
   Nokogiri::HTML.parse(OpenURI.open_uri(SLACKMOJI_POPULAR_URL)).css('a.downloader').each do |d|
     tempfile = Down.download("#{SLACKMOJI_BASE_URL}#{d['href']}")
     begin
-      upload(d.text.strip.gsub(/\A:|:\Z/, ''), tempfile.read, api_token)
-      break # remove this...
+      upload(d.text.strip.gsub(/\A:|:\Z/, ''), tempfile, api_token)
     ensure
       tempfile.close
       tempfile.unlink
@@ -56,36 +53,23 @@ def fetch_api_token(data)
   end
 end
 
-def upload(emoji_name, emoji_data, api_token)
+def upload(emoji_name, emoji_file, api_token)
   puts "Uploading: #{emoji_name}"
-  binding.pry
-  # resp = HTTP.post(SLACK_API_URL, form: { token: auth_token, mode: 'data', name: name, image: HTTP::FormData::File.new(tempfile.path)})
+  result = HTTP.post(SLACK_EMOJI_API_URL, form: {
+                       mode: 'data',
+                       name: emoji_name,
+                       token: api_token,
+                       image: HTTP::FormData::File.new(emoji_file.path)
+                     }).parse
+  return if result['ok']
 
-  # data = {
-  #     'mode': 'data',
-  #     'name': emoji_name,
-  #     'token': session.api_token
-  # }
-  #
-  # while True:
-  #   with open(filename, 'rb') as f:
-  #                                    files = {'image': f}
-  #   resp = session.post(session.url_add, data=data, files=files, allow_redirects=False)
-  #
-  #   if resp.status_code == 429:
-  #       wait = int(resp.headers.get('retry-after', 1))
-  #   print("429 Too Many Requests!, sleeping for %d seconds" % wait)
-  #   sleep(wait)
-  #   continue
-  #
-  #   resp.raise_for_status()
-  #
-  #   Slack returns 200 OK even if upload fails, so check for status.
-    # response_json = resp.json()
-    # if not response_json['ok']:
-    #     print("Error with uploading %s: %s" % (emoji_name, response_json))
-    #
-    # break
+  error = result['error']
+  if result['error'].include? 'error_name_taken'
+    puts "Name already taken: #{emoji_name}"
+    return
+  end
+  puts "ERROR: #{error}"
+  exit(1)
 end
 
 slackmojifier
