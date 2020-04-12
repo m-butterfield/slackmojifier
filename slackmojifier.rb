@@ -87,7 +87,7 @@ def upload(emoji_name, emoji_file, api_token)
   if resp.status == 429
     wait_time = resp.headers['retry-after']
     puts "Rate limited. Waiting for #{wait_time} seconds"
-    sleep(wait_time)
+    sleep(wait_time.to_i)
     return upload(emoji_name, emoji_file, api_token)
   end
 
