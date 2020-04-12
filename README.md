@@ -3,4 +3,4 @@
 Import custom emoji from Slackmoji into Slack!
 
 
-    ./slackmojifier.rb <slack-team> <slack-cookie>
+    ./slackmojifier <slack-team> <slack-cookie>
