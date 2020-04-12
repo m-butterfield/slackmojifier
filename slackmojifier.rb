@@ -51,6 +51,7 @@ def slackmojifier
       tempfile.close
       tempfile.unlink
     end
+    existing_emoji.add(name)
   end
 end
 
@@ -68,7 +69,7 @@ end
 def fetch_existing_emoji(api_token)
   puts 'Fetching existing emoji names...'
   result = HTTP.get(SLACK_EMOJI_LIST_URL, params: { token: api_token }).parse
-  return result['emoji'].keys if result['ok']
+  return result['emoji'].keys.to_set if result['ok']
 
   puts "ERROR: #{result['error']}"
   exit(1)
