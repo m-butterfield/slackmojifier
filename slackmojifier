@@ -1,0 +1,24 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'docopt'
+require_relative 'slackmojifier'
+
+begin
+  OPTS = Docopt.docopt <<~DOCOPT
+    slackmojifier
+
+    Import custom emoji from Slackmoji into Slack!
+
+    Usage:
+        ./slackmojifier <slack-team> <slack-cookie>
+
+    Options:
+        -h --help     Show this screen.
+  DOCOPT
+rescue Docopt::Exit => e
+  puts e.message
+  exit(1)
+end
+
+Slackmojifier.new(OPTS['<slack-team>'], SLACK_COOKIE = OPTS['<slack-cookie>']).copy_emojis

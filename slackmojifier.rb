@@ -1,106 +1,124 @@
-#!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require 'docopt'
 require 'down'
 require 'http'
 require 'nokogiri'
 require 'open-uri'
 
-begin
-  OPTS = Docopt.docopt <<~DOCOPT
-    slackmojifier
+class Slackmojifier
 
-    Import custom emoji from Slackmoji into Slack!
+  SLACKMOJI_BASE_URL = 'https://slackmojis.com'
 
-    Usage:
-        ./slackmojifier.rb <slack-team> <slack-cookie>
+  def initialize(slack_team, slack_cookie)
+    @slack_team = slack_team
+    @slack_cookie = slack_cookie
+  end
 
-    Options:
-        -h --help     Show this screen.
-  DOCOPT
-rescue Docopt::Exit => e
-  puts e.message
-  exit(1)
-end
+  def copy_emojis(path: '/emojis/popular')
+    url = SLACKMOJI_BASE_URL + path
+    puts "Copying emojis from #{url} to #{@slack_team}'s Slack"
+    Nokogiri::HTML.parse(OpenURI.open_uri(url)).css('a.downloader').each do |d|
+      copy_emoji(d.text.strip.gsub(/\A:|:\Z/, ''), SLACKMOJI_BASE_URL + d['href'])
+    end
+    puts 'Done!'
+  end
 
-SLACK_TEAM = OPTS['<slack-team>'].freeze
-SLACK_COOKIE = OPTS['<slack-cookie>'].freeze
-
-SLACKMOJI_BASE_URL = 'https://slackmojis.com'
-SLACKMOJI_POPULAR_URL = "#{SLACKMOJI_BASE_URL}/emojis/popular"
-SLACK_CUSTOMIZE_URL = "https://#{SLACK_TEAM}.slack.com/customize/emoji"
-SLACK_API_BASE_URL = "https://#{SLACK_TEAM}.slack.com/api"
-SLACK_EMOJI_ADD_URL = "#{SLACK_API_BASE_URL}/emoji.add"
-SLACK_EMOJI_LIST_URL = "#{SLACK_API_BASE_URL}/emoji.list"
-
-def slackmojifier
-  api_token = fetch_api_token
-  existing_emoji = fetch_existing_emoji(api_token)
-  Nokogiri::HTML.parse(OpenURI.open_uri(SLACKMOJI_POPULAR_URL)).css('a.downloader').each do |d|
-    name = d.text.strip.gsub(/\A:|:\Z/, '')
+  def copy_emoji(name, url)
     if existing_emoji.include? name
       puts "emoji with name: #{name} already exists, skipping..."
-      next
+      return
     end
 
-    tempfile = Down.download("#{SLACKMOJI_BASE_URL}#{d['href']}")
+    tempfile = Down.download(url)
     begin
-      upload(name, tempfile, api_token)
+      upload_emoji(name, tempfile.path)
     ensure
       tempfile.close
       tempfile.unlink
     end
+
     existing_emoji.add(name)
   end
-end
 
-def fetch_api_token
-  puts 'Fetching API token...'
-  data = OpenURI.open_uri(SLACK_CUSTOMIZE_URL, { "Cookie" => SLACK_COOKIE }) # must be string key
-  Nokogiri::HTML.parse(data).css('script').each do |e|
-    result = e.text.match(/"api_token":"([a-z\-0-9]+)"/)
-    return result.captures[0] unless result.nil?
-  end
-  puts 'Error: Could not fetch API token'
-  exit(1)
-end
+  def upload_emoji(emoji_name, file_path)
+    puts "Uploading: #{emoji_name}"
+    resp = HTTP.post(
+      slack_emoji_add_url,
+      form: {
+        mode: 'data',
+        name: emoji_name,
+        token: api_token,
+        image: HTTP::FormData::File.new(file_path)
+      }
+    )
 
-def fetch_existing_emoji(api_token)
-  puts 'Fetching existing emoji names...'
-  result = HTTP.get(SLACK_EMOJI_LIST_URL, params: { token: api_token }).parse
-  return result['emoji'].keys.to_set if result['ok']
+    if resp.status == 429
+      wait_time = resp.headers['retry-after']
+      puts "Rate limited. Waiting for #{wait_time} seconds"
+      sleep(wait_time.to_i)
+      return upload_emoji(emoji_name, file_path)
+    end
 
-  puts "ERROR: #{result['error']}"
-  exit(1)
-end
-
-def upload(emoji_name, emoji_file, api_token)
-  puts "Uploading: #{emoji_name}"
-  resp = HTTP.post(SLACK_EMOJI_ADD_URL, form: {
-                     mode: 'data',
-                     name: emoji_name,
-                     token: api_token,
-                     image: HTTP::FormData::File.new(emoji_file.path)
-                   })
-
-  if resp.status == 429
-    wait_time = resp.headers['retry-after']
-    puts "Rate limited. Waiting for #{wait_time} seconds"
-    sleep(wait_time.to_i)
-    return upload(emoji_name, emoji_file, api_token)
+    check_upload_error(resp.parse, emoji_name)
   end
 
-  result = resp.parse
-  return if result['ok']
+  def check_upload_error(result, emoji_name)
+    return if result['ok']
 
-  error = result['error']
-  if result['error'].include? 'error_name_taken'
-    puts "Name already taken: #{emoji_name}"
-    return
+    error = result['error']
+    if result['error'].include? 'error_name_taken'
+      puts "Name already taken: #{emoji_name}"
+      return
+    end
+    puts "ERROR: #{error}"
+    exit(1)
   end
-  puts "ERROR: #{error}"
-  exit(1)
-end
 
-slackmojifier
+  def api_token
+    @api_token ||= fetch_api_token
+  end
+
+  def fetch_api_token
+    puts 'Fetching API token...'
+    page_data = OpenURI.open_uri(slack_customize_url, slack_headers)
+    Nokogiri::HTML.parse(page_data).css('script').each do |e|
+      result = e.text.match(/"api_token":"([a-z\-0-9]+)"/)
+      return result.captures[0] unless result.nil?
+    end
+    puts 'Error: Could not fetch API token'
+    exit(1)
+  end
+
+  def existing_emoji
+    @existing_emoji ||= fetch_existing_emoji
+  end
+
+  def fetch_existing_emoji
+    puts 'Fetching existing emoji names...'
+    result = HTTP.get(slack_emoji_list_url, params: { token: api_token }).parse
+    return result['emoji'].keys.to_set if result['ok']
+
+    puts "ERROR: #{result['error']}"
+    exit(1)
+  end
+
+  def slack_headers
+    { "Cookie" => @slack_cookie } # must be string key
+  end
+
+  def slack_customize_url
+    @slack_customize_url ||= "https://#{@slack_team}.slack.com/customize/emoji"
+  end
+
+  def slack_api_base_url
+    @slack_api_base_url ||= "https://#{@slack_team}.slack.com/api"
+  end
+
+  def slack_emoji_add_url
+    @slack_emoji_add_url ||= "#{slack_api_base_url}/emoji.add"
+  end
+
+  def slack_emoji_list_url
+    @slack_emoji_list_url ||= "#{slack_api_base_url}/emoji.list"
+  end
+end
